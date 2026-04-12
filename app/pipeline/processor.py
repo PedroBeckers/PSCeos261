@@ -34,20 +34,23 @@ def load_processed_keys(conn: DuckDBPyConnection) -> set[str]:
     return {row[0] for row in rows}
 
 
-def normalize_file_to_utf8(source_path: Path, target_path: Path) -> None:
-    target_path.parent.mkdir(parents=True, exist_ok=True)
+def normalize_file_in_place(file_path: Path) -> None:
+    temp_path = file_path.with_name(f"{file_path.name}.tmp")
 
     for encoding in ("utf-8", "latin-1", "cp1252"):
         try:
-            with source_path.open("r", encoding=encoding, newline="") as src, \
-                 target_path.open("w", encoding="utf-8", newline="") as dst:
+            with file_path.open("r", encoding=encoding, newline="") as src, \
+                 temp_path.open("w", encoding="utf-8", newline="") as dst:
                 for line in src:
                     dst.write(line)
+            temp_path.replace(file_path)
             return
         except UnicodeDecodeError:
+            if temp_path.exists():
+                temp_path.unlink()
             continue
 
-    raise RuntimeError(f"Erro ao converter encoding: {source_path}")
+    raise RuntimeError(f"Erro ao converter encoding: {file_path}")
 
 
 def process(
@@ -72,15 +75,14 @@ def process(
                 print(f"[processor] ignorado (já processado): {file_key}")
                 continue
 
-            normalized_path = file_path.with_name(f"{file_path.name}.utf8")
-            normalize_file_to_utf8(file_path, normalized_path)
+            normalize_file_in_place(file_path)
 
             pipeline_files.append(
                 PipelineFile(
                     file_key=file_key,
                     snapshot=snapshot_name,
                     entity=entity,
-                    staged_file_path=normalized_path,
+                    staged_file_path=file_path,
                 )
             )
 
