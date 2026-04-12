@@ -2,29 +2,20 @@ SEARCH_EMPRESAS_BY_RAZAO = """
     SELECT
         e.cnpj_basico,
         e.razao_social,
-        est.uf,
         nj.descricao AS natureza_juridica,
         e.porte_empresa,
         e.capital_social
     FROM empresas e
-    LEFT JOIN estabelecimentos est
-        ON e.cnpj_basico = est.cnpj_basico
-       AND est.identificador_matriz_filial = '1'
     LEFT JOIN naturezas_juridicas nj
         ON e.natureza_juridica = nj.codigo
     WHERE UPPER(e.razao_social) LIKE UPPER(?)
-      AND (? = '' OR est.uf = ?)
     LIMIT 50
 """
 
 COUNT_EMPRESAS_BY_RAZAO = """
-    SELECT COUNT(*)
-    FROM empresas e
-    LEFT JOIN estabelecimentos est
-        ON e.cnpj_basico = est.cnpj_basico
-       AND est.identificador_matriz_filial = '1'
-    WHERE UPPER(e.razao_social) LIKE UPPER(?)
-      AND (? = '' OR est.uf = ?)
+    SELECT COUNT(*) AS total
+    FROM empresas
+    WHERE UPPER(razao_social) LIKE UPPER(?)
 """
 
 SEARCH_ESTABELECIMENTOS_BY_CNPJ_COMPLETO = """
@@ -90,6 +81,8 @@ LIST_ESTABELECIMENTOS_BY_FILTERS = """
         ON est.cnae_fiscal_principal = c.codigo
     WHERE (? = '' OR est.uf = ?)
       AND (? = '' OR m.descricao = ?)
+      AND (? = '' OR est.situacao_cadastral = ?)
+      AND (? = '' OR c.descricao = ?)
     LIMIT 100
 """
 
@@ -98,8 +91,12 @@ COUNT_ESTABELECIMENTOS_BY_FILTERS = """
     FROM estabelecimentos est
     LEFT JOIN municipios m
         ON est.municipio = m.codigo
+    LEFT JOIN cnaes c
+        ON est.cnae_fiscal_principal = c.codigo
     WHERE (? = '' OR est.uf = ?)
       AND (? = '' OR m.descricao = ?)
+      AND (? = '' OR est.situacao_cadastral = ?)
+      AND (? = '' OR c.descricao = ?)
 """
 
 LIST_SOCIOS_BY_CNPJ_BASICO = """
@@ -125,6 +122,14 @@ LIST_UFS = """
 LIST_MUNICIPIOS = """
     SELECT DISTINCT descricao
     FROM municipios
+    WHERE descricao IS NOT NULL
+      AND descricao <> ''
+    ORDER BY descricao
+"""
+
+LIST_CNAES = """
+    SELECT DISTINCT descricao
+    FROM cnaes
     WHERE descricao IS NOT NULL
       AND descricao <> ''
     ORDER BY descricao

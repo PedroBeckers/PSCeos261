@@ -11,6 +11,7 @@ from app.database.connection import get_connection
 from app.database.queries import (
     COUNT_EMPRESAS_BY_RAZAO,
     COUNT_ESTABELECIMENTOS_BY_FILTERS,
+    LIST_CNAES,
     LIST_ESTABELECIMENTOS_BY_CNPJ_BASICO,
     LIST_ESTABELECIMENTOS_BY_FILTERS,
     LIST_MUNICIPIOS,
@@ -61,6 +62,10 @@ def get_municipios(conn):
     return [row[0] for row in conn.execute(LIST_MUNICIPIOS).fetchall()]
 
 
+def get_cnaes(conn):
+    return [row[0] for row in conn.execute(LIST_CNAES).fetchall()]
+
+
 def run() -> None:
     st.set_page_config(page_title="Consulta CNPJ", layout="wide")
     st.title("Consulta de Dados do CNPJ")
@@ -69,38 +74,26 @@ def run() -> None:
 
     try:
         tab1, tab2, tab3 = st.tabs(
-            ["Buscar por razão social", "Buscar por CNPJ", "Filtrar estabelecimentos"]
+            [
+                "Buscar empresas por razão social",
+                "Buscar estabelecimentos por CNPJ",
+                "Buscar estabelecimentos com filtro",
+            ]
         )
 
-        # ======================
-        # BUSCA POR RAZAO SOCIAL
-        # ======================
         with tab1:
-            st.subheader("Busca por razão social")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                termo = st.text_input("Digite parte da razão social")
-
-            with col2:
-                ufs = [""] + get_ufs(conn)
-                uf = st.selectbox(
-                    "UF",
-                    options=ufs,
-                    format_func=lambda x: "Todas" if x == "" else x,
-                    key="razao_social_uf",
-                )
+            st.subheader("Buscar empresas por razão social")
+            termo = st.text_input("Digite parte da razão social")
 
             if termo.strip():
                 total = conn.execute(
                     COUNT_EMPRESAS_BY_RAZAO,
-                    [f"%{termo.strip()}%", uf, uf],
+                    [f"%{termo.strip()}%"],
                 ).fetchone()[0]
 
                 resultados = conn.execute(
                     SEARCH_EMPRESAS_BY_RAZAO,
-                    [f"%{termo.strip()}%", uf, uf],
+                    [f"%{termo.strip()}%"],
                 ).fetchdf()
 
                 exibidos = len(resultados)
@@ -108,11 +101,8 @@ def run() -> None:
                 st.write(f"Mostrando {exibidos} de {total} resultados")
                 st.dataframe(resultados, use_container_width=True)
 
-        # ======================
-        # BUSCA POR CNPJ
-        # ======================
         with tab2:
-            st.subheader("Busca por CNPJ")
+            st.subheader("Buscar estabelecimentos por CNPJ")
             cnpj_input = st.text_input("Digite o CNPJ completo")
             cnpj_limpo = clean_cnpj(cnpj_input)
 
@@ -163,16 +153,23 @@ def run() -> None:
                         st.subheader("Sócios")
                         st.dataframe(socios, use_container_width=True)
 
-        # ======================
-        # FILTROS
-        # ======================
         with tab3:
-            st.subheader("Filtrar estabelecimentos")
+            st.subheader("Buscar estabelecimentos com filtro")
 
             ufs = [""] + get_ufs(conn)
             municipios = [""] + get_municipios(conn)
+            cnaes = [""] + get_cnaes(conn)
+            situacoes = [
+                ("", "Todas"),
+                ("01", "Nula"),
+                ("02", "Ativa"),
+                ("03", "Suspensa"),
+                ("04", "Inapta"),
+                ("08", "Baixada"),
+            ]
 
             col1, col2 = st.columns(2)
+            col3, col4 = st.columns(2)
 
             with col1:
                 uf = st.selectbox(
@@ -187,16 +184,33 @@ def run() -> None:
                     "Município",
                     options=municipios,
                     format_func=lambda x: "Todos" if x == "" else x,
+                    key="filtro_estabelecimentos_municipio",
+                )
+
+            with col3:
+                situacao = st.selectbox(
+                    "Situação cadastral",
+                    options=[value for value, _ in situacoes],
+                    format_func=lambda x: dict(situacoes)[x],
+                    key="filtro_estabelecimentos_situacao",
+                )
+
+            with col4:
+                cnae = st.selectbox(
+                    "CNAE principal",
+                    options=cnaes,
+                    format_func=lambda x: "Todos" if x == "" else x,
+                    key="filtro_estabelecimentos_cnae",
                 )
 
             total = conn.execute(
                 COUNT_ESTABELECIMENTOS_BY_FILTERS,
-                [uf, uf, municipio, municipio],
+                [uf, uf, municipio, municipio, situacao, situacao, cnae, cnae],
             ).fetchone()[0]
 
             resultados = conn.execute(
                 LIST_ESTABELECIMENTOS_BY_FILTERS,
-                [uf, uf, municipio, municipio],
+                [uf, uf, municipio, municipio, situacao, situacao, cnae, cnae],
             ).fetchdf()
 
             exibidos = len(resultados)
