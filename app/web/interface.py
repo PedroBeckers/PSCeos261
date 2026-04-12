@@ -77,17 +77,30 @@ def run() -> None:
         # ======================
         with tab1:
             st.subheader("Busca por razão social")
-            termo = st.text_input("Digite parte da razão social")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                termo = st.text_input("Digite parte da razão social")
+
+            with col2:
+                ufs = [""] + get_ufs(conn)
+                uf = st.selectbox(
+                    "UF",
+                    options=ufs,
+                    format_func=lambda x: "Todas" if x == "" else x,
+                    key="razao_social_uf",
+                )
 
             if termo.strip():
                 total = conn.execute(
                     COUNT_EMPRESAS_BY_RAZAO,
-                    [f"%{termo.strip()}%"],
+                    [f"%{termo.strip()}%", uf, uf],
                 ).fetchone()[0]
 
                 resultados = conn.execute(
                     SEARCH_EMPRESAS_BY_RAZAO,
-                    [f"%{termo.strip()}%"],
+                    [f"%{termo.strip()}%", uf, uf],
                 ).fetchdf()
 
                 exibidos = len(resultados)
@@ -162,7 +175,12 @@ def run() -> None:
             col1, col2 = st.columns(2)
 
             with col1:
-                uf = st.selectbox("UF", options=ufs, format_func=lambda x: "Todas" if x == "" else x)
+                uf = st.selectbox(
+                    "UF",
+                    options=ufs,
+                    format_func=lambda x: "Todas" if x == "" else x,
+                    key="filtro_estabelecimentos_uf",
+                )
 
             with col2:
                 municipio = st.selectbox(

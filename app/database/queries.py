@@ -2,20 +2,29 @@ SEARCH_EMPRESAS_BY_RAZAO = """
     SELECT
         e.cnpj_basico,
         e.razao_social,
+        est.uf,
         nj.descricao AS natureza_juridica,
         e.porte_empresa,
         e.capital_social
     FROM empresas e
+    LEFT JOIN estabelecimentos est
+        ON e.cnpj_basico = est.cnpj_basico
+       AND est.identificador_matriz_filial = '1'
     LEFT JOIN naturezas_juridicas nj
         ON e.natureza_juridica = nj.codigo
     WHERE UPPER(e.razao_social) LIKE UPPER(?)
+      AND (? = '' OR est.uf = ?)
     LIMIT 50
 """
 
 COUNT_EMPRESAS_BY_RAZAO = """
-    SELECT COUNT(*) AS total
-    FROM empresas
-    WHERE UPPER(razao_social) LIKE UPPER(?)
+    SELECT COUNT(*)
+    FROM empresas e
+    LEFT JOIN estabelecimentos est
+        ON e.cnpj_basico = est.cnpj_basico
+       AND est.identificador_matriz_filial = '1'
+    WHERE UPPER(e.razao_social) LIKE UPPER(?)
+      AND (? = '' OR est.uf = ?)
 """
 
 SEARCH_ESTABELECIMENTOS_BY_CNPJ_COMPLETO = """
