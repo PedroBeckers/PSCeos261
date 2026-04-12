@@ -5,25 +5,22 @@ from duckdb import DuckDBPyConnection
 
 def initialize_database(conn: DuckDBPyConnection) -> None:
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS ingestion_control (
-            file_name VARCHAR NOT NULL,
-            entity VARCHAR,
-            stage VARCHAR NOT NULL,
-            status VARCHAR NOT NULL,
-            processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            message VARCHAR
+        CREATE TABLE IF NOT EXISTS processed_files (
+            file_key VARCHAR PRIMARY KEY,
+            processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS empresas (
-            cnpj_basico VARCHAR,
+            cnpj_basico VARCHAR PRIMARY KEY,
             razao_social VARCHAR,
             natureza_juridica VARCHAR,
             qualificacao_responsavel VARCHAR,
             capital_social VARCHAR,
             porte_empresa VARCHAR,
-            ente_federativo_responsavel VARCHAR
+            ente_federativo_responsavel VARCHAR,
+            source_file VARCHAR
         )
     """)
 
@@ -58,7 +55,9 @@ def initialize_database(conn: DuckDBPyConnection) -> None:
             fax VARCHAR,
             correio_eletronico VARCHAR,
             situacao_especial VARCHAR,
-            data_situacao_especial VARCHAR
+            data_situacao_especial VARCHAR,
+            source_file VARCHAR,
+            PRIMARY KEY (cnpj_basico, cnpj_ordem, cnpj_dv)
         )
     """)
 
@@ -74,27 +73,31 @@ def initialize_database(conn: DuckDBPyConnection) -> None:
             representante_legal VARCHAR,
             nome_representante VARCHAR,
             qualificacao_representante_legal VARCHAR,
-            faixa_etaria VARCHAR
+            faixa_etaria VARCHAR,
+            source_file VARCHAR
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cnaes (
-            codigo VARCHAR,
-            descricao VARCHAR
+            codigo VARCHAR PRIMARY KEY,
+            descricao VARCHAR,
+            source_file VARCHAR
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS naturezas_juridicas (
-            codigo VARCHAR,
-            descricao VARCHAR
+            codigo VARCHAR PRIMARY KEY,
+            descricao VARCHAR,
+            source_file VARCHAR
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS municipios (
-            codigo VARCHAR,
-            descricao VARCHAR
+            codigo VARCHAR PRIMARY KEY,
+            descricao VARCHAR,
+            source_file VARCHAR
         )
     """)

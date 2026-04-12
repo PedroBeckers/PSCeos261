@@ -14,10 +14,8 @@ def run_pipeline() -> None:
     conn = get_connection()
     initialize_database(conn)
 
-    conn.execute("DELETE FROM ingestion_control")
-
-    raw_files = collect()
-    processed_files = process(raw_files)
+    snapshot_dirs = collect()
+    processed_files = process(conn, snapshot_dirs)
     ingest(conn, processed_files)
 
     conn.close()

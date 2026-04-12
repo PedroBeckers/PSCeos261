@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
-from app.core.config import RAW_DIR, ensure_directories
+from app.core.config import RAW_DIR, STAGED_DIR, ensure_directories
 
 
-def list_raw_files() -> list[Path]:
+def collect() -> list[Path]:
     ensure_directories()
-    return sorted(
+
+    zip_files = sorted(
         [
             path
             for path in RAW_DIR.iterdir()
@@ -15,12 +17,23 @@ def list_raw_files() -> list[Path]:
         ]
     )
 
+    print(f"[collector] {len(zip_files)} arquivo(s) ZIP encontrado(s) em {RAW_DIR}")
 
-def collect() -> list[Path]:
-    files = list_raw_files()
-    print(f"[collector] {len(files)} arquivo(s) ZIP encontrado(s) em {RAW_DIR}")
+    snapshot_dirs: list[Path] = []
 
-    for file_path in files:
-        print(f"[collector] - {file_path.name}")
+    for zip_path in zip_files:
+        snapshot_name = zip_path.name
+        extract_dir = STAGED_DIR / snapshot_name
 
-    return files
+        if extract_dir.exists():
+            print(f"[collector] reutilizando extração existente de {snapshot_name}")
+        else:
+            print(f"[collector] extraindo {snapshot_name}")
+            extract_dir.mkdir(parents=True, exist_ok=True)
+
+            with zipfile.ZipFile(zip_path, "r") as zip_file:
+                zip_file.extractall(extract_dir)
+
+        snapshot_dirs.append(extract_dir)
+
+    return snapshot_dirs

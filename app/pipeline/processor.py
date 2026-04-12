@@ -1,71 +1,92 @@
 from __future__ import annotations
 
-import shutil
-import zipfile
 from pathlib import Path
 
-from app.core.config import STAGED_DIR, ensure_directories
+from duckdb import DuckDBPyConnection
+
+from app.pipeline.models import PipelineFile
 
 
-def clear_staged_directory() -> None:
-    ensure_directories()
+def classify_entity(file_path: Path) -> str:
+    parent_name = file_path.parent.name.lower()
 
-    if STAGED_DIR.exists():
-        for item in STAGED_DIR.iterdir():
-            if item.is_dir():
-                shutil.rmtree(item)
-            else:
-                item.unlink()
-
-
-def extract_zip(zip_path: Path) -> list[Path]:
-    extracted_files: list[Path] = []
-
-    destination_dir = STAGED_DIR / zip_path.stem
-    destination_dir.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(zip_path, "r") as zip_file:
-        zip_file.extractall(destination_dir)
-
-    for path in destination_dir.rglob("*"):
-        if path.is_file():
-            extracted_files.append(path)
-
-    return sorted(extracted_files)
-
-
-def classify_file(file_path: Path) -> str:
-    parts = [part.lower() for part in file_path.parts]
-
-    for part in reversed(parts):
-        if part.startswith("empresa"):
-            return "empresas"
-        if part.startswith("estabelecimento"):
-            return "estabelecimentos"
-        if part.startswith("socio"):
-            return "socios"
-        if part.startswith("cnae"):
-            return "cnaes"
-        if part.startswith("natureza"):
-            return "naturezas_juridicas"
-        if part.startswith("municipio"):
-            return "municipios"
+    if parent_name.startswith("empresa"):
+        return "empresas"
+    if parent_name.startswith("estabelecimento"):
+        return "estabelecimentos"
+    if parent_name.startswith("socio"):
+        return "socios"
+    if parent_name.startswith("cnae"):
+        return "cnaes"
+    if parent_name.startswith("natureza"):
+        return "naturezas_juridicas"
+    if parent_name.startswith("municipio"):
+        return "municipios"
 
     return "desconhecido"
 
 
-def process(zip_files: list[Path]) -> list[tuple[Path, str]]:
-    clear_staged_directory()
+def load_processed_keys(conn: DuckDBPyConnection) -> set[str]:
+    rows = conn.execute("""
+        SELECT file_key
+        FROM processed_files
+    """).fetchall()
+    return {row[0] for row in rows}
 
-    processed_files: list[tuple[Path, str]] = []
 
-    for zip_path in zip_files:
-        print(f"[processor] extraindo {zip_path.name}")
-        extracted_files = extract_zip(zip_path)
+def normalize_file_to_utf8(source_path: Path, target_path: Path) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
 
-        for file_path in extracted_files:
-            entity = classify_file(file_path)
-            print(f"[processor] {file_path} -> {entity}")
-            processed_files.append((file_path, entity))
+    encodings_to_try = ["utf-8", "latin-1", "cp1252"]
 
-    return processed_files
+    for encoding in encodings_to_try:
+        try:
+            with source_path.open("r", encoding=encoding, newline="") as src, \
+                 target_path.open("w", encoding="utf-8", newline="") as dst:
+                for line in src:
+                    dst.write(line)
+            return
+        except UnicodeDecodeError:
+            continue
+
+    raise RuntimeError(f"Erro ao converter encoding: {source_path}")
+
+
+def process(conn: DuckDBPyConnection, snapshot_dirs: list[Path]) -> list[PipelineFile]:
+    processed_keys = load_processed_keys(conn)
+    pipeline_files: list[PipelineFile] = []
+
+    for snapshot_dir in snapshot_dirs:
+        snapshot_name = snapshot_dir.name          # ex: 2026-03.zip
+        snapshot = snapshot_name.removesuffix(".zip")
+
+        for file_path in sorted([p for p in snapshot_dir.rglob("*") if p.is_file()]):
+            entity = classify_entity(file_path)
+
+            if entity == "desconhecido":
+                print(f"[processor] ignorado (entidade desconhecida): {file_path}")
+                continue
+
+            relative_inside_snapshot = file_path.relative_to(snapshot_dir).as_posix()
+            file_key = f"{snapshot_name}/{relative_inside_snapshot}"
+
+            if file_key in processed_keys:
+                print(f"[processor] ignorado (já processado): {file_key}")
+                continue
+
+            normalized_path = file_path.with_name(f"{file_path.name}.utf8")
+            normalize_file_to_utf8(file_path, normalized_path)
+
+            pipeline_files.append(
+                PipelineFile(
+                    file_key=file_key,
+                    snapshot=snapshot,
+                    entity=entity,
+                    staged_file_path=normalized_path,
+                )
+            )
+
+            print(f"[processor] {file_key} -> {entity}")
+
+    print(f"[processor] {len(pipeline_files)} arquivo(s) pendente(s)")
+    return pipeline_files

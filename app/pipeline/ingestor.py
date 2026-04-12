@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from pathlib import Path
-import tempfile
-
 from duckdb import DuckDBPyConnection
+
+from app.pipeline.models import PipelineFile
 
 
 TABLE_COLUMNS: dict[str, list[str]] = {
@@ -77,65 +75,24 @@ TABLE_COLUMNS: dict[str, list[str]] = {
 }
 
 
-def register_ingestion(
-    conn: DuckDBPyConnection,
-    file_name: str,
-    entity: str | None,
-    stage: str,
-    status: str,
-    message: str | None = None,
-) -> None:
+def mark_as_processed(conn: DuckDBPyConnection, file_key: str) -> None:
     conn.execute(
         """
-        INSERT INTO ingestion_control (file_name, entity, stage, status, message)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO processed_files (file_key)
+        VALUES (?)
         """,
-        [file_name, entity, stage, status, message],
+        [file_key],
     )
 
 
-def truncate_table(conn: DuckDBPyConnection, table_name: str) -> None:
-    conn.execute(f"DELETE FROM {table_name}")
-
-
-def normalize_file_to_utf8(file_path: Path) -> Path:
-    temp_dir = Path(tempfile.gettempdir())
-    normalized_path = temp_dir / f"{file_path.name}.utf8"
-
-    encodings_to_try = ["utf-8", "latin-1", "cp1252"]
-
-    last_error: Exception | None = None
-
-    for encoding in encodings_to_try:
-        try:
-            with file_path.open("r", encoding=encoding, newline="") as source, \
-                 normalized_path.open("w", encoding="utf-8", newline="") as target:
-                for line in source:
-                    target.write(line)
-            return normalized_path
-        except UnicodeDecodeError as exc:
-            last_error = exc
-            continue
-
-    raise UnicodeDecodeError(
-        "unknown",
-        b"",
-        0,
-        1,
-        f"Nao foi possivel decodificar o arquivo {file_path} com utf-8, latin-1 ou cp1252. Ultimo erro: {last_error}"
-    )
-
-
-def ingest_csv_file(conn: DuckDBPyConnection, file_path: Path, entity: str) -> None:
-    columns = TABLE_COLUMNS[entity]
-    column_list = ", ".join(columns)
-
-    normalized_file_path = normalize_file_to_utf8(file_path)
+def ingest_file(conn: DuckDBPyConnection, file: PipelineFile) -> None:
+    columns = TABLE_COLUMNS[file.entity]
+    target_columns = ", ".join([*columns, "source_file"])
 
     conn.execute(
         f"""
-        INSERT INTO {entity} ({column_list})
-        SELECT *
+        INSERT INTO {file.entity} ({target_columns})
+        SELECT *, ? AS source_file
         FROM read_csv(
             ?,
             delim=';',
@@ -145,51 +102,15 @@ def ingest_csv_file(conn: DuckDBPyConnection, file_path: Path, entity: str) -> N
             encoding='utf-8'
         )
         """,
-        [str(normalized_file_path)],
+        [file.file_key, str(file.staged_file_path)],
     )
 
 
-def ingest(conn: DuckDBPyConnection, processed_files: list[tuple[Path, str]]) -> None:
-    grouped: dict[str, list[Path]] = defaultdict(list)
-
-    for file_path, entity in processed_files:
-        grouped[entity].append(file_path)
-
-    for entity, files in grouped.items():
-        if entity == "desconhecido":
-            for file_path in files:
-                register_ingestion(
-                    conn,
-                    file_path.name,
-                    None,
-                    "ingestion",
-                    "ignored",
-                    "Tipo de arquivo não reconhecido",
-                )
-                print(f"[ingestor] ignorado: {file_path}")
-            continue
-
-        truncate_table(conn, entity)
-
-        for file_path in sorted(files):
-            try:
-                ingest_csv_file(conn, file_path, entity)
-                register_ingestion(
-                    conn,
-                    file_path.name,
-                    entity,
-                    "ingestion",
-                    "success",
-                    f"Arquivo carregado com sucesso em {entity}",
-                )
-                print(f"[ingestor] carregado: {file_path} -> {entity}")
-            except Exception as exc:
-                register_ingestion(
-                    conn,
-                    file_path.name,
-                    entity,
-                    "ingestion",
-                    "error",
-                    str(exc),
-                )
-                print(f"[ingestor] erro: {file_path} -> {entity} | {exc}")
+def ingest(conn: DuckDBPyConnection, files: list[PipelineFile]) -> None:
+    for file in files:
+        try:
+            ingest_file(conn, file)
+            mark_as_processed(conn, file.file_key)
+            print(f"[ingestor] carregado: {file.file_key} -> {file.entity}")
+        except Exception as exc:
+            print(f"[ingestor] erro: {file.file_key} -> {file.entity} | {exc}")
