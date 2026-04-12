@@ -158,19 +158,48 @@ Filtros disponíveis:
 
 ---
 
-## ▶️ Como executar
+## 📥 Obtenção dos Dados
 
-### 1. Instalar dependências
+Devido ao grande volume dos dados disponibilizados pela Receita Federal (arquivos que podem ultrapassar gigabytes), não foi implementado um mecanismo de download automático no projeto.
 
-    pip install -r requirements.txt
+Essa decisão foi tomada para:
 
-### 2. Executar pipeline
+- evitar longos tempos de execução durante testes  
+- não sobrecarregar o repositório com arquivos pesados  
+- manter o projeto leve e portátil  
 
-    python3 -m app.main pipeline
+### ▶️ Como testar a aplicação
 
-### 3. Executar interface
+Para executar o pipeline, é necessário baixar manualmente um lote de dados do CNPJ:
 
-    python3 -m app.main web
+1. Acesse a base oficial da Receita Federal  
+2. Baixe um arquivo `.zip` referente a um snapshot (ex: `2026-03.zip`)  
+3. Coloque o arquivo na pasta:
+
+```
+data/raw/
+```
+
+4. Execute o pipeline normalmente:
+
+```
+python3 -m app.main pipeline
+```
+
+O sistema irá:
+
+- extrair o lote  
+- processar os arquivos relevantes  
+- ingerir os dados no banco  
+- disponibilizar para consulta na interface  
+
+Após a ingestão dos lotes, execute a interface web:
+
+```
+python3 -m app.main web
+```
+
+A interface será iniciada e estará disponível no navegador para consulta dos dados.
 
 ---
 
