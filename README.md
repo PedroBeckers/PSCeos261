@@ -1,6 +1,6 @@
 # 📊 Consulta de Dados do CNPJ
 
-Este projeto foi desenvolvido como parte de um processo seletivo, com o objetivo de construir uma solução completa de coleta, processamento, ingestão e visualização de dados públicos do CNPJ.
+Desenvolvido como desafio do processo seletivo do Projeto Céos 26.1, este projeto tem com o objetivo de construir uma solução completa de coleta, processamento, ingestão e visualização de dados públicos do CNPJ.
 
 ---
 
@@ -244,4 +244,4 @@ Além disso, incorpora práticas importantes como:
 
 ## 👤 Autor
 
-Projeto desenvolvido por **Pedro Becker** como parte de processo seletivo.
+Projeto desenvolvido por **Pedro Becker**
