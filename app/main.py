@@ -14,8 +14,8 @@ def run_pipeline() -> None:
     conn = get_connection()
     initialize_database(conn)
 
-    snapshot_dirs = collect()
-    processed_files = process(conn, snapshot_dirs)
+    snapshots = collect()
+    processed_files = process(conn, snapshots)
     ingest(conn, processed_files)
 
     conn.close()

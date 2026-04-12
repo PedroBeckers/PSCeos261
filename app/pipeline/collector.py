@@ -6,7 +6,7 @@ from pathlib import Path
 from app.core.config import RAW_DIR, STAGED_DIR, ensure_directories
 
 
-def collect() -> list[Path]:
+def collect() -> list[tuple[str, Path]]:
     ensure_directories()
 
     zip_files = sorted(
@@ -19,21 +19,21 @@ def collect() -> list[Path]:
 
     print(f"[collector] {len(zip_files)} arquivo(s) ZIP encontrado(s) em {RAW_DIR}")
 
-    snapshot_dirs: list[Path] = []
+    snapshots: list[tuple[str, Path]] = []
 
     for zip_path in zip_files:
-        snapshot_name = zip_path.name
-        extract_dir = STAGED_DIR / snapshot_name
+        snapshot_name = zip_path.stem
+        snapshot_root = STAGED_DIR / snapshot_name
 
-        if extract_dir.exists():
+        if snapshot_root.exists():
             print(f"[collector] reutilizando extração existente de {snapshot_name}")
         else:
-            print(f"[collector] extraindo {snapshot_name}")
-            extract_dir.mkdir(parents=True, exist_ok=True)
+            print(f"[collector] extraindo {zip_path.name} em {STAGED_DIR}")
 
             with zipfile.ZipFile(zip_path, "r") as zip_file:
-                zip_file.extractall(extract_dir)
+                zip_file.extractall(STAGED_DIR)
 
-        snapshot_dirs.append(extract_dir)
+        print(f"[collector] snapshot disponível em {snapshot_root}")
+        snapshots.append((snapshot_name, snapshot_root))
 
-    return snapshot_dirs
+    return snapshots

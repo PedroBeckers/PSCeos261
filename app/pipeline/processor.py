@@ -37,9 +37,7 @@ def load_processed_keys(conn: DuckDBPyConnection) -> set[str]:
 def normalize_file_to_utf8(source_path: Path, target_path: Path) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    encodings_to_try = ["utf-8", "latin-1", "cp1252"]
-
-    for encoding in encodings_to_try:
+    for encoding in ("utf-8", "latin-1", "cp1252"):
         try:
             with source_path.open("r", encoding=encoding, newline="") as src, \
                  target_path.open("w", encoding="utf-8", newline="") as dst:
@@ -52,22 +50,22 @@ def normalize_file_to_utf8(source_path: Path, target_path: Path) -> None:
     raise RuntimeError(f"Erro ao converter encoding: {source_path}")
 
 
-def process(conn: DuckDBPyConnection, snapshot_dirs: list[Path]) -> list[PipelineFile]:
+def process(
+    conn: DuckDBPyConnection,
+    snapshots: list[tuple[str, Path]],
+) -> list[PipelineFile]:
     processed_keys = load_processed_keys(conn)
     pipeline_files: list[PipelineFile] = []
 
-    for snapshot_dir in snapshot_dirs:
-        snapshot_name = snapshot_dir.name          # ex: 2026-03.zip
-        snapshot = snapshot_name.removesuffix(".zip")
-
-        for file_path in sorted([p for p in snapshot_dir.rglob("*") if p.is_file()]):
+    for snapshot_name, snapshot_root in snapshots:
+        for file_path in sorted([p for p in snapshot_root.rglob("*") if p.is_file()]):
             entity = classify_entity(file_path)
 
             if entity == "desconhecido":
                 print(f"[processor] ignorado (entidade desconhecida): {file_path}")
                 continue
 
-            relative_inside_snapshot = file_path.relative_to(snapshot_dir).as_posix()
+            relative_inside_snapshot = file_path.relative_to(snapshot_root).as_posix()
             file_key = f"{snapshot_name}/{relative_inside_snapshot}"
 
             if file_key in processed_keys:
@@ -80,7 +78,7 @@ def process(conn: DuckDBPyConnection, snapshot_dirs: list[Path]) -> list[Pipelin
             pipeline_files.append(
                 PipelineFile(
                     file_key=file_key,
-                    snapshot=snapshot,
+                    snapshot=snapshot_name,
                     entity=entity,
                     staged_file_path=normalized_path,
                 )
