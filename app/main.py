@@ -5,7 +5,7 @@ import sys
 
 from app.database.connection import get_connection
 from app.database.schema import initialize_database
-from app.pipeline.collector import collect
+from app.pipeline.collector import collect, finalize_batch
 from app.pipeline.ingestor import ingest
 from app.pipeline.processor import process
 
@@ -14,9 +14,16 @@ def run_pipeline() -> None:
     conn = get_connection()
     initialize_database(conn)
 
-    snapshots = collect()
-    processed_files = process(conn, snapshots)
-    ingest(conn, processed_files)
+    while True:
+        batch = collect()
+
+        if batch is None:
+            break
+
+        snapshot_name, snapshot_root, zip_path = batch
+        processed_files = process(conn, [(snapshot_name, snapshot_root)])
+        ingest(conn, processed_files)
+        finalize_batch(snapshot_root, zip_path)
 
     conn.close()
     print("[main] pipeline finalizado")

@@ -3,6 +3,8 @@ __pycache__/
 data/raw/*
 data/staged/*
 data/db/*
+data/processed_raw/*
 !data/raw/.gitkeep
 !data/staged/.gitkeep
 !data/db/.gitkeep
+!data/processed_raw/.gitkeep

@@ -91,14 +91,14 @@ def ingest_file(conn: DuckDBPyConnection, file: PipelineFile) -> None:
 
     conn.execute(
         f"""
-        INSERT INTO {file.entity} ({target_columns})
+        INSERT OR IGNORE INTO {file.entity} ({target_columns})
         SELECT *, ? AS source_file
         FROM read_csv(
             ?,
             delim=';',
             header=false,
             all_varchar=true,
-            ignore_errors=false,
+            ignore_errors=true,
             encoding='utf-8'
         )
         """,
