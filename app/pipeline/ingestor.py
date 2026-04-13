@@ -89,9 +89,13 @@ def ingest_file(conn: DuckDBPyConnection, file: PipelineFile) -> None:
     columns = TABLE_COLUMNS[file.entity]
     target_columns = ", ".join([*columns, "source_file"])
 
+    insert_clause = "INSERT"
+    if file.entity != "socios":
+        insert_clause = "INSERT OR IGNORE"
+
     conn.execute(
         f"""
-        INSERT OR IGNORE INTO {file.entity} ({target_columns})
+        {insert_clause} INTO {file.entity} ({target_columns})
         SELECT *, ? AS source_file
         FROM read_csv(
             ?,
