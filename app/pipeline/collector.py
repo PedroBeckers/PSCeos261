@@ -52,21 +52,6 @@ def extract_nested_zips(snapshot_root: Path) -> None:
 
         inner_zip.unlink()
 
-
-def flatten_snapshot_root(snapshot_root: Path) -> Path:
-    children = [path for path in snapshot_root.iterdir()]
-
-    if len(children) == 1 and children[0].is_dir() and children[0].name == snapshot_root.name:
-        nested_root = children[0]
-
-        for child in nested_root.iterdir():
-            child.replace(snapshot_root / child.name)
-
-        nested_root.rmdir()
-
-    return snapshot_root
-
-
 def collect() -> tuple[str, Path, Path] | None:
     ensure_directories()
 
@@ -90,11 +75,8 @@ def collect() -> tuple[str, Path, Path] | None:
     if snapshot_root.exists():
         print(f"[collector] reutilizando extração existente de {snapshot_name}")
     else:
-        snapshot_root.mkdir(parents=True, exist_ok=True)
         print(f"[collector] extraindo {zip_path.name} em {STAGED_DIR}")
-
-        extract_main_zip(zip_path, snapshot_root)
-        snapshot_root = flatten_snapshot_root(snapshot_root)
+        extract_main_zip(zip_path, STAGED_DIR)
         extract_nested_zips(snapshot_root)
 
     print(f"[collector] snapshot disponível em {snapshot_root}")
